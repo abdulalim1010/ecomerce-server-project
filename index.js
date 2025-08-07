@@ -1,22 +1,20 @@
 const express = require('express');
-
 const cors = require('cors');
-const app = express();
-const dotenv=require("dotenv");
-const port = process.env.PORT || 3000;
+const dotenv = require("dotenv");
 const { MongoClient, ServerApiVersion } = require('mongodb');
+
 dotenv.config();
 
+const app = express();
+const port = process.env.PORT || 3000;
 
-//middlewares
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
-
-
+// MongoDB URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster2.emeucb3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster2`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -25,26 +23,43 @@ const client = new MongoClient(uri, {
   }
 });
 
+let productsCollection; // Declare outside to use in route
+
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+    // Connect to MongoDB
     await client.connect();
-    // Send a ping to confirm a successful connection
+
+    const database = client.db("productCollections");
+    productsCollection = database.collection("products");
+
+    // Confirm connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
+    console.log("✅ Connected to MongoDB");
+
+    // Start server only after DB is connected
+    app.listen(port, () => {
+      console.log(`🚀 Store is running on port ${port}`);
+    });
+
+  } catch (err) {
+    console.error("❌ MongoDB connection failed:", err);
   }
 }
-run().catch(console.dir);
 
+run(); // Don't close the client!
 
-
-
+// Routes
 app.get('/', (req, res) => {
-  res.send('ecommerce API is running');
-})
-app.listen(port, () => {
-  console.log(`store is running on port ${port}`)
-})
+  res.send('🛒 Ecommerce API is running');
+});
+
+app.get('/products', async (req, res) => {
+  try {
+    const products = await productsCollection.find().toArray();
+    res.send(products);
+  } catch (err) {
+    console.error('Error fetching products:', err);
+    res.status(500).send({ error: 'Failed to fetch products' });
+  }
+});
